@@ -7,7 +7,7 @@ from baseline_model import DrugTargetNET, ModelTrainer
 logging.getLogger("datasets").setLevel(logging.ERROR)  # Suppress warnings from the datasets library
 
 
-def main() -> None:
+def baseline_evaluation() -> None:
     """
     Main function to train and test the baseline model
     :return: None
@@ -32,14 +32,15 @@ def main() -> None:
     # Train the model
     model = DrugTargetNET()
     trainer = ModelTrainer(model, train_loader, validation_loader)
-
     trainer.train(epochs=10)
-    trainer.save('baseline_model.pth')
 
-    # Test the model
+    # Save and load the model to test the save/load functions
+    trainer.save('baseline_model.pth')
     trainer.load('baseline_model.pth')
+
+    # Test the model on the test set
     trainer.test(test_dataset.data)
 
 
 if __name__ == '__main__':
-    main()
+    baseline_evaluation()
