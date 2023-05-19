@@ -6,6 +6,12 @@ from data_manager import ProteinAffinityData
 from baseline_model import DrugTargetNET, ModelTrainer
 logging.getLogger("datasets").setLevel(logging.ERROR)  # Suppress warnings from the datasets library
 
+# Constants:
+# as per JGLaser HuggingFace repository documentation. Adapt to CPU/GPU memory availability and performance.
+train_proportion = 'train[:2%]'
+validation_proportion = 'train[2%:3%]'
+test_proportion = 'train[3%:4%]'
+
 
 def baseline_evaluation() -> None:
     """
@@ -13,9 +19,9 @@ def baseline_evaluation() -> None:
     :return: None
     """
     # Load the data
-    train_dataset = ProteinAffinityData('train[:2%]')
-    validation_dataset = ProteinAffinityData('train[2%:3%]')
-    test_dataset = ProteinAffinityData('train[3%:4%]')
+    train_dataset = ProteinAffinityData(train_proportion)
+    validation_dataset = ProteinAffinityData(validation_proportion)
+    test_dataset = ProteinAffinityData(test_proportion)
 
     # Preprocess the data
     train_dataset.preprocess()
