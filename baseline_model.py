@@ -13,12 +13,12 @@ class DrugTargetNET(nn.Module):
     """
     Class to define the DrugTargetNET baseline model
     """
-    def __init__(self):
+    def __init__(self, input_size: int) -> None:
         """
         Constructor for the DrugTargetNET class
         """
         super(DrugTargetNET, self).__init__()
-        self.fc1 = nn.Linear(3024, 512)
+        self.fc1 = nn.Linear(input_size, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, 128)
         self.fc4 = nn.Linear(128, 1)

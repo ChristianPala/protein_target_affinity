@@ -1,4 +1,4 @@
-# Auxiliar class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
+# Auxiliary class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
 # Libraries:
 import numpy as np
 import torch
@@ -87,7 +87,6 @@ class ProteinAffinityData:
         """
         self.max_seq_len = max([len(item['protein_encoded']) for item in self.data])
 
-
     @staticmethod
     def _normalize_affinity(x, mean, std):
         """
@@ -123,3 +122,10 @@ class ProteinAffinityData:
         combined_features = torch.cat((smiles_fp, protein_encoded_padded), dim=1)
         affinity = torch.tensor([item['affinity'] for item in batch])
         return {'combined_features': combined_features, 'affinity': affinity}
+
+    def get_max_seq_len(self):
+        """
+        Function to get the maximum sequence length of the proteins in the dataset
+        :return: int: The maximum sequence length
+        """
+        return self.max_seq_len
