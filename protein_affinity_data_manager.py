@@ -21,6 +21,7 @@ class ProteinAffinityData:
         :param split:
         """
         self.data = load_dataset("jglaser/binding_affinity", split=split)
+        self.max_seq_len = 0
 
     def preprocess(self):
         """
@@ -30,6 +31,7 @@ class ProteinAffinityData:
         """
         self.data = self.data.map(self._safe_smiles_to_fp).filter(lambda x: x is not None)
         self.data = self.data.map(self._protein_encoding)
+        self._calculate_max_seq_len()
         self.data = self.data.map(self._combine_features)
 
     def normalize_affinity(self, mean: float, std: float) -> None:
@@ -78,6 +80,14 @@ class ProteinAffinityData:
         x['protein_encoded'] = [amino_acid_dict[aa.capitalize()] for aa in x['seq']]
         return x
 
+    def _calculate_max_seq_len(self):
+        """
+        Auxiliary function to calculate the maximum sequence length of the proteins in the dataset
+        :return: None. The maximum sequence length is stored as an attribute of the class
+        """
+        self.max_seq_len = max([len(item['protein_encoded']) for item in self.data])
+
+
     @staticmethod
     def _normalize_affinity(x, mean, std):
         """
@@ -100,18 +110,16 @@ class ProteinAffinityData:
         x['combined_features'] = torch.Tensor(np.concatenate((x['smiles_fp'], x['protein_encoded'])))
         return x
 
-    @staticmethod
-    def _collate_fn(batch):
+    def _collate_fn(self, batch):
         """
         Function to collate the data into a single tensor for the DataLoader
         :param batch: the batch of data
         :return: the collated data
         """
         smiles_fp = torch.stack([torch.from_numpy(np.array(item['smiles_fp'])) for item in batch])
-        max_seq_len = 2000  # Check the max length of the protein sequence in the dataset
         protein_encoded = pad_sequence([torch.tensor(item['protein_encoded']) for item in batch], batch_first=True,
                                        padding_value=0)
-        protein_encoded_padded = F.pad(protein_encoded, (0, max_seq_len - protein_encoded.shape[1]))
+        protein_encoded_padded = F.pad(protein_encoded, (0, self.max_seq_len - protein_encoded.shape[1]))
         combined_features = torch.cat((smiles_fp, protein_encoded_padded), dim=1)
         affinity = torch.tensor([item['affinity'] for item in batch])
         return {'combined_features': combined_features, 'affinity': affinity}
