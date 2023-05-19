@@ -2,7 +2,7 @@
 # Libraries:
 import numpy as np
 import logging
-from protein_affinity_data_manager import ProteinAffinityData
+from data_manager import ProteinAffinityData
 from baseline_model import DrugTargetNET, ModelTrainer
 logging.getLogger("datasets").setLevel(logging.ERROR)  # Suppress warnings from the datasets library
 
