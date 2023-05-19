@@ -71,7 +71,7 @@ class ModelTrainer:
             with torch.no_grad():
                 validation_loss = sum(self.criterion(self.model(data['combined_features'].float()),
                                                      data['affinity'].float()).item() for data in self.val_loader)
-            print(f'Epoch: {epoch + 1}, Loss: {validation_loss / len(self.val_loader)}')
+            print(f'Epoch: {epoch + 1}, Loss: {validation_loss / len(self.val_loader):.3f}')
 
     def test(self, test_data) -> None:
         """
@@ -85,11 +85,11 @@ class ModelTrainer:
             outputs = self.model(X_test)
             # save the metrics to a file
             with open('test_metrics.txt', 'w') as f:
-                f.write("Baseline\n:")
-                f.write(f'RMSE: {np.sqrt(self.criterion(outputs, y_test))}\n')
-                f.write(f'MAE: {mean_absolute_error(y_test, outputs)}\n')
-                f.write(f'R2: {r2_score(y_test, outputs)}\n')
-                f.write(f'Pearson: {pearsonr(y_test, outputs)}\n')
+                f.write("Baseline results\n:")
+                f.write(f'RMSE: {np.sqrt(self.criterion(outputs, y_test)):.3f}\n')
+                f.write(f'MAE: {mean_absolute_error(y_test, outputs):.3f}\n')
+                f.write(f'R2: {r2_score(y_test, outputs):.3f}\n')
+                f.write(f'Pearson: {pearsonr(y_test, outputs):.3f}\n')
 
     def save(self, filename: str) -> None:
         """
