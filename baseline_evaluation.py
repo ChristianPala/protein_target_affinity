@@ -28,7 +28,7 @@ def baseline_evaluation() -> None:
     test_dataset.normalize_affinity(mean_affinity, std_affinity)
     train_loader = train_dataset.get_dataloader(batch_size=64, shuffle=True)
     validation_loader = validation_dataset.get_dataloader(batch_size=64, shuffle=False)
-    
+
     # Get the input length for the model
     input_length = train_dataset.max_seq_len + 1024  # Morgan fingerprint length
 
