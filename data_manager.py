@@ -1,13 +1,23 @@
 # Auxiliary class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
+# for drug target interaction prediction
 # Libraries:
 import numpy as np
 import torch
 from datasets import load_dataset
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
+from transformers import BertModel, BertTokenizer
+
+
+# Constants:
+# We use prot_bert to encode protein sequences.
+# See: https://huggingface.co/Rostlab/prot_bert
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Load the pretrained prot_bert transformer and tokenizer
+model_name = 'Rostlab/prot_bert'
+model = BertModel.from_pretrained(model_name).to(device)
+tokenizer = BertTokenizer.from_pretrained(model_name)
 
 
 # Classes:
@@ -15,21 +25,13 @@ class ProteinAffinityData:
     """
     Class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
     """
+
     def __init__(self, split: str) -> None:
         """
         Constructor for the ProteinAffinityData class
         :param split:
         """
         self.data = load_dataset("jglaser/binding_affinity", split=split)
-        self.global_max_seq_len = None
-
-    def compute_global_max_seq_len(self):
-        """
-        Compute the maximum sequence length across the entire dataset (train, test)
-        """
-        if self.global_max_seq_len is None:
-            self.global_max_seq_len = max(len(x['protein_encoded']) for x in self.data)
-        return self.global_max_seq_len
 
     def preprocess(self):
         """
@@ -79,20 +81,27 @@ class ProteinAffinityData:
     @staticmethod
     def _protein_encoding(x):
         """
-        Function to encode a protein sequence as a list of integers, X is the unknown amino acid.
-        :param x: dict: The input dictionary
-        :return: dict: The input dictionary with the protein sequence encoded
+        Function to encode a protein sequence using the ProtBert Transformer model
+        :return:
         """
-        amino_acid_dict = {amino_acid: i for i, amino_acid in enumerate('ACDEFGHIKLMNPQRSTVXWY')}
-        x['protein_encoded'] = [amino_acid_dict[aa.capitalize()] for aa in x['seq']]
-        return x
+        # Tokenize the protein sequence
+        sequence = x['seq']
+        tokens = tokenizer.encode(sequence, add_special_tokens=True)
+        # Convert the tokens to PyTorch tensors
+        input_ids = torch.tensor(tokens).unsqueeze(0)
 
-    def _calculate_max_seq_len(self):
-        """
-        Auxiliary function to calculate the maximum sequence length of the proteins in the dataset
-        :return: None. The maximum sequence length is stored as an attribute of the class
-        """
-        self.max_seq_len = max([len(item['protein_encoded']) for item in self.data])
+        # Move the input tensors to the appropriate device
+        input_ids = input_ids.to(device)
+
+        # Forward pass through the model to obtain the encoded representations
+        with torch.no_grad():
+            outputs = model(input_ids)
+            encoded_sequence = outputs.last_hidden_state.squeeze(0)
+
+        # Add the encoded sequence to the input dictionary
+        x['protein_encoded'] = encoded_sequence
+
+        return x
 
     @staticmethod
     def _normalize_affinity(x, mean, std):
@@ -107,41 +116,38 @@ class ProteinAffinityData:
         return x
 
     @staticmethod
-    def _combine_features(x):
+    def _collate_fn(batch):
         """
-        Function to combine the protein encoding and the SMILES fingerprint into a single tensor
-        :param x: the input dictionary
-        :return: the input dictionary with the combined features
-        """
-        x['combined_features'] = torch.Tensor(np.concatenate((x['smiles_fp'], x['protein_encoded'])))
-        return x
-
-    def calculate_max_seq_len(self, dataset):
-        """
-        Function to compute the maximum protein sequence length across an entire dataset.
-        :param dataset: the input dataset
-        :return: the maximum protein sequence length
-        """
-        self.max_seq_len = max(len(x['seq']) for x in dataset)
-
-    def _collate_fn(self, batch):
-        """
-        Function to collate the data into a single tensor for the DataLoader
+        Function to collate the data into a single tensor for the DataLoader, flattening the features
+        and returning the affinity as a tensor.
         :param batch: the batch of data
         :return: the collated data
         """
-        smiles_fp = torch.stack([torch.from_numpy(np.array(item['smiles_fp'])) for item in batch])
-        protein_encoded = pad_sequence([torch.tensor(item['protein_encoded']) for item in batch], batch_first=True,
-                                       padding_value=0)
-        protein_encoded_padded = F.pad(protein_encoded, (0, self.compute_global_max_seq_len() - protein_encoded.shape[1]))
-        combined_features = torch.cat((smiles_fp, protein_encoded_padded), dim=1)
-        affinity = torch.tensor([item['affinity'] for item in batch])
+        smiles_fp = torch.stack(
+            [torch.from_numpy(np.array(item['smiles_fp'])).to(device) for item in batch])
+        protein_encoded = torch.stack(
+            [torch.from_numpy(np.array(item['protein_encoded'])).to(device) for item in batch])
+
+        # Flatten the features
+        flattened_smiles_fp = smiles_fp.view(smiles_fp.size(0), -1)
+        flattened_protein_encoded = protein_encoded.view(protein_encoded.size(0), -1)
+
+        # Concatenate the flattened features
+        combined_features = torch.cat((flattened_smiles_fp, flattened_protein_encoded), dim=1).to(device)
+
+        affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'combined_features': combined_features, 'affinity': affinity}
 
-    def set_global_max_seq_len(self, max_seq_len):
+    @staticmethod
+    def _combine_features(x):
         """
-        Function to set the maximum sequence length
-        :param max_seq_len: the maximum sequence length
-        :return: None. The maximum sequence length is stored as an attribute of the class
+        Function to combine the features into a single tensor and flatten it to a 1D array
+        :param x: the input dictionary
+        :return: the input dictionary with the features combined and flattened
         """
-        self.global_max_seq_len = max_seq_len
+        smiles_fp = torch.from_numpy(np.array(x['smiles_fp'])).unsqueeze(0).unsqueeze(0).to(device)
+        protein_encoded = torch.from_numpy(np.array(x['protein_encoded'])).unsqueeze(0).to(device)
+        combined_features = torch.cat((smiles_fp, protein_encoded), dim=1).to(device)
+        flattened_features = combined_features.view(combined_features.size(0), -1)
+        x['combined_features'] = flattened_features
+        return x
