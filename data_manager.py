@@ -7,17 +7,22 @@ from datasets import load_dataset
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 from torch.utils.data import DataLoader
-from transformers import BertModel, BertTokenizer
+from transformers import BertModel, BertTokenizer, AutoTokenizer
+from sentence_transformers import SentenceTransformer
 
 
 # Constants:
 # We use prot_bert to encode protein sequences.
 # See: https://huggingface.co/Rostlab/prot_bert
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# Load the pretrained prot_bert transformer and tokenizer
+# Load the pretrained prot_bert transformer and tokenizer for protein sequences
 model_name = 'Rostlab/prot_bert'
 model = BertModel.from_pretrained(model_name).to(device)
 tokenizer = BertTokenizer.from_pretrained(model_name)
+# Load the pretrained Roberta transformer and tokenizer for protein sequences from
+# ChemBERTa: A Pre-trained Language Model for Chemical Text Mining
+s_tokenizer = AutoTokenizer.from_pretrained("seyonec/PubChem10M_SMILES_BPE_450k")
+s_model = SentenceTransformer("seyonec/PubChem10M_SMILES_BPE_450k")
 
 
 # Classes:
@@ -63,6 +68,28 @@ class ProteinAffinityData:
 
     @staticmethod
     def _safe_smiles_to_fp(x):
+        """
+        Function to convert a SMILES string into an embedding using a pretrained model and handle exceptions
+        :param x: str: The SMILES string
+        :return: dict: The input dictionary with the embedding added
+        """
+        try:
+            # Encode the SMILES string
+            encoding = s_tokenizer(x['smiles'], return_tensors='pt')
+
+            # Pass the encoding through the model
+            embeddings = s_model.encode(encoding)
+
+            # Use the mean embedding if there are multiple
+            mean_embedding = embeddings.mean(axis=0)
+
+            x['smiles_fp'] = mean_embedding
+        except Exception as e:
+            print(f"Could not compute embedding for SMILES {x['smiles']}. Error: {e}")
+        return x
+
+    @staticmethod
+    def _safe_morgan_smiles_to_fp(x):
         """
         Function to convert a SMILES string into a Morgan fingerprint and handle exceptions
         :param x: str: The SMILES string

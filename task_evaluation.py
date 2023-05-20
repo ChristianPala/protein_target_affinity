@@ -8,12 +8,14 @@ import torch
 logging.getLogger("datasets").setLevel(logging.ERROR)  # Suppress warnings from the datasets library
 
 # Constants:
-train_proportion = 'train[:1%]'
-validation_proportion = 'train[1%:2%]'
-test_proportion = 'train[2%:3%]'
-morgan_fp_length = 1024
+# We trained the model on an NVIDIA A200 GPU machine from Google cloud,
+# so we down-sample the dataset accordingly, fit to your hardware.
+train_proportion = 'train[:2%]'
+validation_proportion = 'train[2%:3%]'
+test_proportion = 'train[3%:4%]'
+pubchem_roberta_encoding_length = 1024
 prot_bert_encoding_length = 3072
-epochs = 5
+epochs = 30
 batch_size = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -47,13 +49,12 @@ def model_evaluation() -> None:
 
     # Get the input length for the model
     # Train the model
-    model = DrugTargetNET(morgan_fp_length, prot_bert_encoding_length).to(device)  # Move model to device
+    model = DrugTargetNET(pubchem_roberta_encoding_length, prot_bert_encoding_length).to(device)  # Move model to device
     trainer = ModelTrainer(model, train_loader, validation_loader)
-    trainer.train(epochs=5)
+    trainer.train(epochs=epochs)
 
-    # Save and load the model to test the save/load functions
+    # Save the model.
     trainer.save('dti_model.pth')
-    trainer.load('dti_model.pth')
 
     # Test the model on the test set
     trainer.test(test_loader)

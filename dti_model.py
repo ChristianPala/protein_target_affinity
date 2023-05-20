@@ -1,9 +1,11 @@
 # Auxiliary file to define the DrugTargetNET model, train and test it on concordance index.
 # Libraries:
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from lifelines.utils import concordance_index
+from scipy.stats import pearsonr
 
 # Constants:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,11 +56,18 @@ class ModelTrainer:
             print(f'Epoch: {epoch + 1}, Loss: {validation_loss / len(self.val_loader):.3f}')
 
     def test(self, test_loader) -> None:
+        """
+        Test the model on the test set and write the results to a file on the metrics we selected.
+        :param test_loader: the test set loader
+        :return: None. Writes the results to a file.
+        """
         self.model.eval()
-        with torch.no_grad():
-            total_ci = 0
-            n_batches = 0
+        total_ci = 0
+        total_mse = 0
+        predictions = []
+        targets = []
 
+        with torch.no_grad():
             for batch in test_loader:
                 X_test = batch['combined_features'].float().to(device)
                 y_test = batch['affinity'].float().to(device)
@@ -69,19 +78,39 @@ class ModelTrainer:
                 y_test_np = y_test.cpu().numpy()
 
                 total_ci += concordance_index(y_test_np, outputs_np.flatten())  # compute CI
-                n_batches += 1
 
-            avg_ci = total_ci / n_batches
+                mse = self.criterion(outputs, y_test).item()
+                total_mse += mse
 
-            with open('test_set_concordance_index.txt', 'w') as f:
-                f.write("Baseline results:\n")
-                f.write(f'CI: {avg_ci:.3f}\n')
+                predictions.append(outputs_np.flatten())
+                targets.append(y_test_np)
+
+        # Compute averages
+        avg_ci = total_ci / len(test_loader)
+        avg_mse = total_mse / len(test_loader)
+
+        # Compute Pearson Correlation
+        pearson_corr, _ = pearsonr(np.concatenate(predictions), np.concatenate(targets))
+
+        # Write to file
+        with open('test_results.txt', 'w') as f:
+            f.write("Test results:\n")
+            f.write(f'CI: {avg_ci:.3f}\n')
+            f.write(f"MSE: {avg_mse:.3f}\n")
+            f.write(f"Pearson: {pearson_corr:.3f}\n")
+
+        # Print to screen
+        print("Test results:")
+        print(f'CI: {avg_ci:.3f}')
+        print(f"MSE: {avg_mse:.3f}")
+        print(f"Pearson: {pearson_corr:.3f}")
 
         self.model.train()
+
 
     def save(self, filename: str) -> None:
         torch.save(self.model.state_dict(), filename)
 
-    def load(self, filename: str) -> None:
-        self.model.load_state_dict(torch.load(filename)).to(device)
-        self.model.eval()
+    def load(self, filename: str):
+        self.model.load_state_dict(torch.load(filename))
+        self.model.to(device)
