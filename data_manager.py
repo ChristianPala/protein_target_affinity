@@ -21,7 +21,15 @@ class ProteinAffinityData:
         :param split:
         """
         self.data = load_dataset("jglaser/binding_affinity", split=split)
-        self.max_seq_len = 0
+        self.global_max_seq_len = None
+
+    def compute_global_max_seq_len(self):
+        """
+        Compute the maximum sequence length across the entire dataset (train, test)
+        """
+        if self.global_max_seq_len is None:
+            self.global_max_seq_len = max(len(x['protein_encoded']) for x in self.data)
+        return self.global_max_seq_len
 
     def preprocess(self):
         """
@@ -31,7 +39,6 @@ class ProteinAffinityData:
         """
         self.data = self.data.map(self._safe_smiles_to_fp).filter(lambda x: x is not None)
         self.data = self.data.map(self._protein_encoding)
-        self._calculate_max_seq_len()
         self.data = self.data.map(self._combine_features)
 
     def normalize_affinity(self, mean: float, std: float) -> None:
@@ -109,6 +116,14 @@ class ProteinAffinityData:
         x['combined_features'] = torch.Tensor(np.concatenate((x['smiles_fp'], x['protein_encoded'])))
         return x
 
+    def calculate_max_seq_len(self, dataset):
+        """
+        Function to compute the maximum protein sequence length across an entire dataset.
+        :param dataset: the input dataset
+        :return: the maximum protein sequence length
+        """
+        self.max_seq_len = max(len(x['seq']) for x in dataset)
+
     def _collate_fn(self, batch):
         """
         Function to collate the data into a single tensor for the DataLoader
@@ -118,14 +133,15 @@ class ProteinAffinityData:
         smiles_fp = torch.stack([torch.from_numpy(np.array(item['smiles_fp'])) for item in batch])
         protein_encoded = pad_sequence([torch.tensor(item['protein_encoded']) for item in batch], batch_first=True,
                                        padding_value=0)
-        protein_encoded_padded = F.pad(protein_encoded, (0, self.max_seq_len - protein_encoded.shape[1]))
+        protein_encoded_padded = F.pad(protein_encoded, (0, self.compute_global_max_seq_len() - protein_encoded.shape[1]))
         combined_features = torch.cat((smiles_fp, protein_encoded_padded), dim=1)
         affinity = torch.tensor([item['affinity'] for item in batch])
         return {'combined_features': combined_features, 'affinity': affinity}
 
-    def get_max_seq_len(self):
+    def set_global_max_seq_len(self, max_seq_len):
         """
-        Function to get the maximum sequence length of the proteins in the dataset
-        :return: int: The maximum sequence length
+        Function to set the maximum sequence length
+        :param max_seq_len: the maximum sequence length
+        :return: None. The maximum sequence length is stored as an attribute of the class
         """
-        return self.max_seq_len
+        self.global_max_seq_len = max_seq_len

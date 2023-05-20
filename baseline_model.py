@@ -73,23 +73,50 @@ class ModelTrainer:
                                                      data['affinity'].float()).item() for data in self.val_loader)
             print(f'Epoch: {epoch + 1}, Loss: {validation_loss / len(self.val_loader):.3f}')
 
-    def test(self, test_data) -> None:
+    def test(self, test_loader) -> None:
         """
         Function to test the model on the test data and print the results
         :param test_data: the test data
         :return: None
         """
+        self.model.eval()
         with torch.no_grad():
-            X_test = torch.Tensor(list(test_data['combined_features']))
-            y_test = torch.Tensor(list(test_data['affinity']))
-            outputs = self.model(X_test)
-            # save the metrics to a file
+            total_rmse = 0
+            total_mae = 0
+            total_r2 = 0
+            total_pearson = 0
+            n_batches = 0
+
+            for batch in test_loader:
+                X_test = batch['combined_features'].float()
+                y_test = batch['affinity'].float()
+
+                outputs = self.model(X_test)
+
+                outputs_np = outputs.cpu().numpy()
+                y_test_np = y_test.cpu().numpy()
+
+                total_rmse += np.sqrt(self.criterion(outputs, y_test).item())
+                total_mae += mean_absolute_error(y_test_np, outputs_np)
+                total_r2 += r2_score(y_test_np, outputs_np)
+                total_pearson += pearsonr(y_test_np, outputs_np.flatten())[0]  # pearsonr returns a tuple
+                n_batches += 1
+
+            # Average the metrics
+            avg_rmse = total_rmse / n_batches
+            avg_mae = total_mae / n_batches
+            avg_r2 = total_r2 / n_batches
+            avg_pearson = total_pearson / n_batches
+
+            # Save the metrics to a file
             with open('test_metrics.txt', 'w') as f:
-                f.write("Baseline results\n:")
-                f.write(f'RMSE: {np.sqrt(self.criterion(outputs, y_test)):.3f}\n')
-                f.write(f'MAE: {mean_absolute_error(y_test, outputs):.3f}\n')
-                f.write(f'R2: {r2_score(y_test, outputs):.3f}\n')
-                f.write(f'Pearson: {pearsonr(y_test, outputs):.3f}\n')
+                f.write("Baseline results:\n")
+                f.write(f'RMSE: {avg_rmse:.3f}\n')
+                f.write(f'MAE: {avg_mae:.3f}\n')
+                f.write(f'R2: {avg_r2:.3f}\n')
+                f.write(f'Pearson: {avg_pearson:.3f}\n')
+
+        self.model.train()
 
     def save(self, filename: str) -> None:
         """
