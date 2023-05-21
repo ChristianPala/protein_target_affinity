@@ -1,5 +1,7 @@
+# Protein Target Affinity
+
 Final Project for Applied Case Studies of Machine Learning and Deep Learning in Key Areas 2 by Professor Grasso.
-Protein Target Affinity
+
 This repository contains the final project for the course "Applied Case Studies of Machine Learning and Deep Learning in Key Areas 2" by Professor Grasso. The project focuses on predicting protein target affinity using machine learning techniques.
 
 
