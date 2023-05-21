@@ -9,9 +9,9 @@ import torch
 
 # Constants
 # Dataset downloading and down-sampling, fit to your hardware:
-train_proportion = 'train[:7000]'
-validation_proportion = 'train[7000:8000]'
-test_proportion = 'train[8000:10000]'
+train_proportion = 'train[:7%]'
+validation_proportion = 'train[7%:8%]'
+test_proportion = 'train[8%:10%]'
 # Model parameters:
 morgan_fingerprint_encoding = 1024
 conjoint_triad_encoding = 512  # Normally 7^3 = 343, but we have an unkown token X, so 8^3 = 512
