@@ -246,3 +246,12 @@ class DataPreprocessorCNN(DataPreprocessor):
              batch])  # changed this line
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'smiles_fp': smiles_fp, 'protein_encoded': protein_encoded, 'affinity': affinity}
+
+    def get_dataloader(self, batch_size: int, shuffle: bool) -> DataLoader:
+        """
+        Function to get a PyTorch DataLoader for the dataset
+        :param batch_size: int: The batch size
+        :param shuffle: bool: Whether to shuffle the data
+        :return: DataLoader: The PyTorch DataLoader
+        """
+        return DataLoader(self.data, batch_size=batch_size, shuffle=shuffle, collate_fn=self._collate_fn)
