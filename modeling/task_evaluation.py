@@ -53,7 +53,7 @@ def train_cnn_model(model, train_loader, validation_loader, test_loader) -> None
     trainer = ModelTrainer(model, train_loader, validation_loader)
     trainer.train_cnn(epochs=epochs)
     trainer.save('cnn_dti_model.pth')
-    trainer.test(test_loader)
+    trainer.test_cnn(test_loader)
     trainer.plot_losses()
 
 
