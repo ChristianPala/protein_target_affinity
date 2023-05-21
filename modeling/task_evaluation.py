@@ -1,115 +1,92 @@
-# Library to evaluate the DrugTargetNET model on the Drug Target Interaction (DTI) task
 # Libraries:
 import numpy as np
 import logging
+
+from torch.utils.data import Dataset
+
 from cnn_encoders import CNNEncoderModel
-from data_manager import ProteinAffinityData
+from data_manager import DataPreprocessor, DataPreprocessorCNN
 from dti_model import DrugTargetNET, ModelTrainer
 import torch
-logging.getLogger("datasets").setLevel(logging.ERROR)  # Suppress warnings from the datasets library
+logging.getLogger("datasets").setLevel(logging.ERROR)
 
-
-# Constants:
-# We trained the model on an NVIDIA A200 GPU machine from Google cloud,
-# so we down-sample the dataset accordingly, fit to your hardware.
+# Constants
+# Dataset downloading and down-sampling:
 train_proportion = 'train[:7%]'
 validation_proportion = 'train[7%:8%]'
 test_proportion = 'train[8%:10%]'
+# Model parameters:
 morgan_fingerprint_encoding = 1024
-conjoint_triad_encoding = 512 # 7^3 usually, but we have 1 unknown amino acid placeholder X, so 8^3.
-protein_bert_encoding = 3072
-epochs = 10
-batch_size = 256
+conjoint_triad_encoding = 512  # Normally 7^3 = 343, but we have an unkown token X, so 8^3 = 512
+protein_bert_encoding = 3072 # 768 (standard BERT embeddings) * 4 flattened layers
+epochs = 10 # Best epoch was 10 with DeepPurpose
+batch_size = 256 # Literature uses 256 often.
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def model_evaluation() -> None:
+# Functions:
+def preprocess_dataset(dataset) -> torch.utils.data.DataLoader:
     """
-    Main function to train and test the baseline model
-    :return: None
+    Preprocesses the dataset, normalizes the affinity and returns a dataloader.
+    :param dataset: The downsampled dataset downloaded from the HuggingFace library by Jglaser.
+    :return: A dataloader with the preprocessed data.
     """
-    # Load the data
-    train_dataset = ProteinAffinityData(train_proportion)
-    validation_dataset = ProteinAffinityData(validation_proportion)
-    test_dataset = ProteinAffinityData(test_proportion)
+    dataset.preprocess()
+    mean_affinity = float(np.mean([x['affinity'] for x in dataset.data]))
+    std_affinity = float(np.std([x['affinity'] for x in dataset.data]))
+    dataset.normalize_affinity(mean_affinity, std_affinity)
+    return dataset.get_dataloader(batch_size=batch_size, shuffle=False)
 
-    # Preprocess the data
-    train_dataset.preprocess()
-    validation_dataset.preprocess()
-    test_dataset.preprocess()
-
-    # Normalize the labels: papers often do not report this.
-    mean_affinity = float(np.mean([x['affinity'] for x in train_dataset.data]))
-    std_affinity = float(np.std([x['affinity'] for x in train_dataset.data]))
-    train_dataset.normalize_affinity(mean_affinity, std_affinity)
-    validation_dataset.normalize_affinity(mean_affinity, std_affinity)
-    test_dataset.normalize_affinity(mean_affinity, std_affinity)
-
-    # Get the dataloaders
-    train_loader = train_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-    validation_loader = validation_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-    test_loader = test_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-
-    # Get the input length for the model
-    # Train the model
-    model = DrugTargetNET(morgan_fingerprint_encoding, protein_bert_encoding).to(device)
+def train_model(model, train_loader, validation_loader, test_loader) -> None:
+    """
+    Trains the model and saves it.
+    :param model: DrugTargetNET model or CNNEncoderModel to train.
+    :param train_loader: the train dataloader.
+    :param validation_loader: the validation dataloader.
+    :param test_loader: the test dataloader.
+    :return: None. Saves the model and plots the losses.
+    """
     trainer = ModelTrainer(model, train_loader, validation_loader)
     trainer.train(epochs=epochs)
-
-    # Save the model.
     trainer.save('dti_model.pth')
-
-    # Test the model on the test set
     trainer.test(test_loader)
-
-    # Plot the training and validation loss
     trainer.plot_losses()
 
-
-def cnn_model_evaluation() -> None:
-    """
-    Main function to train and test the CNN model
-    :return: None
-    """
-    # Load the data
-    train_dataset = ProteinAffinityData(train_proportion)
-    validation_dataset = ProteinAffinityData(validation_proportion)
-    test_dataset = ProteinAffinityData(test_proportion)
-
-    # Preprocess the data
-    train_dataset.preprocess()
-    validation_dataset.preprocess()
-    test_dataset.preprocess()
-
-    # Normalize the labels
-    mean_affinity = float(np.mean([x['affinity'] for x in train_dataset.data]))
-    std_affinity = float(np.std([x['affinity'] for x in train_dataset.data]))
-    train_dataset.normalize_affinity(mean_affinity, std_affinity)
-    validation_dataset.normalize_affinity(mean_affinity, std_affinity)
-    test_dataset.normalize_affinity(mean_affinity, std_affinity)
-
-    # Get the dataloaders
-    train_loader = train_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-    validation_loader = validation_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-    test_loader = test_dataset.get_dataloader(batch_size=batch_size, shuffle=False)
-
-    # Initialize the model. You need to provide appropriate dimensions based on your data.
-    model = CNNEncoderModel(smiles_encoding=2048, protein_encoding=1024, dropout_p=0.1).to(device)
+def train_cnn_model(model, train_loader, validation_loader, test_loader) -> None:
     trainer = ModelTrainer(model, train_loader, validation_loader)
-
-    # Train the model
-    trainer.train_cnn(epochs=epochs)
-
-    # Save the model
+    trainer.train_cnn(epochs=epochs, smiles_encoding=morgan_fingerprint_encoding)
     trainer.save('cnn_dti_model.pth')
-
-    # Test the model on the test set
-    trainer.test_cnn(test_loader)
-
-    # Plot the training and validation loss
+    trainer.test(test_loader)
     trainer.plot_losses()
+
+
+def model_evaluation():
+    train_dataset = DataPreprocessor(train_proportion)
+    validation_dataset = DataPreprocessor(validation_proportion)
+    test_dataset = DataPreprocessor(test_proportion)
+
+    train_loader = preprocess_dataset(train_dataset)
+    validation_loader = preprocess_dataset(validation_dataset)
+    test_loader = preprocess_dataset(test_dataset)
+
+    model = DrugTargetNET(smiles_encoding=morgan_fingerprint_encoding,
+                          protein_encoding=protein_bert_encoding, dropout_p=0.1).to(device)
+
+    train_model(model, train_loader, validation_loader ,test_loader)
+
+
+def cnn_model_evaluation():
+    train_dataset = DataPreprocessorCNN(train_proportion)
+    validation_dataset = DataPreprocessorCNN(validation_proportion)
+    test_dataset = DataPreprocessorCNN(test_proportion)
+
+    train_loader = preprocess_dataset(train_dataset)
+    validation_loader = preprocess_dataset(validation_dataset)
+    test_loader = preprocess_dataset(test_dataset)
+
+    model = CNNEncoderModel(smiles_encoding=2048, protein_encoding=1024, dropout_p=0.1).to(device)
+    train_cnn_model(model, train_loader, validation_loader, test_loader)
 
 
 if __name__ == '__main__':
     cnn_model_evaluation()
-

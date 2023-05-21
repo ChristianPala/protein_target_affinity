@@ -25,20 +25,21 @@ tokenizer = BertTokenizer.from_pretrained(model_name)
 
 
 # Classes:
-class ProteinAffinityData:
+class DataPreprocessor:
     """
     Class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
     """
     # Constants:
-    amino_acid_properties = {
-        'A': 'A', 'G': 'A', 'V': 'A',  # AGV - aliphatic
-        'I': 'B', 'L': 'B', 'F': 'B', 'P': 'B',  # ILFP - aliphatic with rings
-        'Y': 'C', 'M': 'C', 'T': 'C', 'S': 'C',  # YMTS - aromatic
-        'H': 'D', 'N': 'D', 'Q': 'D', 'W': 'D',  # HNQW - aromatic with rings
-        'R': 'E', 'K': 'E',  # RK - positively charged
-        'D': 'F', 'E': 'F',  # DE - negatively charged
-        'C': 'G',  # C - cysteine
-        'X': 'H'  # Unknown amino acid
+    amino_acid_properties = { # From https://doi.org/10.1186/s12859-015-0828-1 by Wang, H., and Hu, X.
+        'A': 'A', 'G': 'A', 'V': 'A',  # AGV
+        'I': 'B', 'L': 'B', 'F': 'B', 'P': 'B',  # ILFP
+        'Y': 'C', 'M': 'C', 'T': 'C', 'S': 'C',  # YMTS
+        'H': 'D', 'N': 'D', 'Q': 'D', 'W': 'D',  # HNQW
+        'R': 'E', 'K': 'E',  # RK
+        'D': 'F', 'E': 'F',  # DE
+        'C': 'G',  # C
+        'X': 'H'  # Unknown amino acid, added by us to account for the fact that some proteins have unknown amino acids
+        # and to ensure the last amino acid is always encoded as a triplet.
     }
 
     def __init__(self, split: str) -> None:
@@ -48,7 +49,7 @@ class ProteinAffinityData:
         """
         self.data = load_dataset("jglaser/binding_affinity", split=split)
         self.all_possible_triads = [''.join(t) for t in
-                                   itertools.product(set(ProteinAffinityData.amino_acid_properties.values()),
+                                   itertools.product(set(DataPreprocessor.amino_acid_properties.values()),
                                                      repeat=3)]
 
     def preprocess(self):
@@ -169,3 +170,46 @@ class ProteinAffinityData:
 
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'combined_features': combined_features, 'affinity': affinity}
+
+
+class DataPreprocessorCNN(DataPreprocessor):
+
+    def __init__(self, split: str) -> None:
+        """
+        Constructor for the ProteinAffinityData class
+        :param split:
+        """
+        super().__init__(split)
+        self.data = self.data.map(self._safe_morgan_smiles_to_fp)
+        self.data = self.data.map(self._protein_encoding_transformer)
+
+    def preprocess(self):
+        """
+        Function to preprocess the data, including computing the fingerprints and encoding the protein sequences,
+        and combining the features into a single tensor.
+        :return:
+        """
+        self.data = self.data.map(self._safe_morgan_smiles_to_fp)
+        self.data = self.data.map(self._protein_encoding_transformer)
+
+    @staticmethod
+    def _collate_fn(batch):
+        """
+        Function to collate the data into a single tensor for the DataLoader, reshaping the features
+        for compatibility with a Conv1D layer, and returning the affinity as a tensor.
+        :param batch: the batch of data
+        :return: the collated data
+        """
+        smiles_fp = torch.stack(
+            [torch.from_numpy(np.array(item['smiles_fp'])).to(device) for item in batch])
+        protein_encoded = torch.stack(
+            [torch.from_numpy(np.array(item['protein_encoded'])).to(device) for item in batch])
+
+        # Reshape the features for compatibility with Conv1D
+        reshaped_smiles_fp = smiles_fp.view(smiles_fp.size(0), 1, -1)
+        reshaped_protein_encoded = protein_encoded.view(protein_encoded.size(0), 1, -1)
+
+        affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
+        return {'smiles_fp': reshaped_smiles_fp, 'protein_encoded': reshaped_protein_encoded, 'affinity': affinity}
+
+    # add other encoders here to extend the class or override the preprocess methods
