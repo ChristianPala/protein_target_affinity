@@ -1,18 +1,15 @@
 # Libraries:
 import numpy as np
-import logging
-
 from torch.utils.data import Dataset
-
 from cnn_encoders import CNNEncoderModel
 from data_manager import DataPreprocessor, DataPreprocessorCNN
 from dti_model import DrugTargetNET, ModelTrainer
 import torch
-logging.getLogger("datasets").setLevel(logging.ERROR)
+
 
 # Constants
 # Dataset downloading and down-sampling:
-train_proportion = 'train[:7000]'
+train_proportion = 'train[0:7000]'
 validation_proportion = 'train[7000:8000]'
 test_proportion = 'train[8000:10000]'
 # Model parameters:
@@ -54,7 +51,7 @@ def train_model(model, train_loader, validation_loader, test_loader) -> None:
 
 def train_cnn_model(model, train_loader, validation_loader, test_loader) -> None:
     trainer = ModelTrainer(model, train_loader, validation_loader)
-    trainer.train_cnn(epochs=epochs, smiles_encoding=morgan_fingerprint_encoding)
+    trainer.train_cnn(epochs=epochs)
     trainer.save('cnn_dti_model.pth')
     trainer.test(test_loader)
     trainer.plot_losses()
@@ -84,7 +81,7 @@ def cnn_model_evaluation():
     validation_loader = preprocess_dataset(validation_dataset)
     test_loader = preprocess_dataset(test_dataset)
 
-    model = CNNEncoderModel(smiles_encoding=1024, protein_encoding=64512, dropout_p=0.1).to(device)
+    model = CNNEncoderModel(smiles_encoding=1024, protein_encoding=1200, dropout_p=0.1).to(device)
     train_cnn_model(model, train_loader, validation_loader, test_loader)
 
 

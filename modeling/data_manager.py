@@ -9,7 +9,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 from torch.utils.data import DataLoader
 from transformers import BertModel, BertTokenizer, AutoTokenizer
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer  #  Imports from ChemBERTa
 from collections import Counter
 
 
@@ -22,6 +22,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_name = 'Rostlab/prot_bert'
 model = BertModel.from_pretrained(model_name).to(device)
 tokenizer = BertTokenizer.from_pretrained(model_name)
+# avoid some weights of the model checkpoint... warning
+import logging
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 
 
 # Classes:
@@ -190,7 +193,42 @@ class DataPreprocessorCNN(DataPreprocessor):
         :return:
         """
         self.data = self.data.map(self._safe_morgan_smiles_to_fp)
-        self.data = self.data.map(self._protein_encoding_transformer)
+        self.data = self.data.map(self._encode_protein_sequence)
+
+
+    @staticmethod
+    def _encode_protein_sequence(x, amino_acids: str = 'ACDEFGHIKLMNPQRSTVWXY', max_length: int = 1200):
+        """
+        One-hot encode a protein sequence.
+
+        Args:
+            x: The input dictionary.
+            amino_acids: A string of possible amino acids.
+            max_length: The maximum length of a protein sequence. Longer sequences are truncated,
+            and shorter ones are padded with zeros.
+
+        Returns:
+            A one-hot encoding for the protein sequence.
+        """
+        protein = x['seq']
+        encoding = []
+        for i in protein:
+            if i in amino_acids:
+                encoding.append([int(i == aa.upper()) for aa in amino_acids])
+            else:
+                return None
+
+        # If the protein sequence is shorter than max_length, pad the encoding with zeros
+        if len(encoding) < max_length:
+            encoding += [[0 for _ in amino_acids]] * (max_length - len(encoding))
+        # If the protein sequence is longer than max_length, truncate the encoding, we selected 1200 based on
+        # the EDA and our applicability domain analysis
+        elif len(encoding) > max_length:
+            encoding = encoding[:max_length]
+
+        x['protein_encoded'] = np.array(encoding)
+
+        return x
 
     @staticmethod
     def _collate_fn(batch):
@@ -201,17 +239,8 @@ class DataPreprocessorCNN(DataPreprocessor):
         :return: the collated data
         """
         smiles_fp = torch.stack(
-            [torch.from_numpy(np.array(item['smiles_fp'])).to(device) for item in batch])
+            [torch.from_numpy(np.array(item['smiles_fp'])).unsqueeze(1).to(device) for item in batch])
         protein_encoded = torch.stack(
-            [torch.from_numpy(np.array(item['protein_encoded'])).to(device) for item in batch])
-
-        # Reshape the features for compatibility with Conv1D
-        reshaped_smiles_fp = smiles_fp.view(smiles_fp.size(0), 1, -1)
-        reshaped_protein_encoded = protein_encoded.view(protein_encoded.size(0), 1, -1)
-
+            [torch.from_numpy(np.array(item['protein_encoded']).T).unsqueeze(0).to(device) for item in batch])
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
-        combined_features = torch.cat([reshaped_smiles_fp, reshaped_protein_encoded], dim=-1)
-        return {'smiles_fp': reshaped_smiles_fp, 'protein_encoded': reshaped_protein_encoded,
-                'combined_features': combined_features, 'affinity': affinity}
-
-    # add other encoders here to extend the class or override the preprocess methods
+        return {'smiles_fp': smiles_fp, 'protein_encoded': protein_encoded, 'affinity': affinity}

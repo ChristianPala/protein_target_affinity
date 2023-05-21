@@ -139,14 +139,15 @@ class ModelTrainer:
         plt.legend()
         plt.show()
 
-    def train_cnn(self, epochs: int, smiles_encoding: int) -> None:
+    def train_cnn(self, epochs: int) -> None:
         for epoch in range(epochs):
             train_loss = 0
             val_loss = 0
 
             for data in self.train_loader:
                 self.optimizer.zero_grad()
-                x_smiles, x_protein, labels = data['smiles_fp'].float().to(device),  data['protein_encoded'].float().to(device), data['affinity'].float().to(device)
+                x_smiles, x_protein, labels = data['smiles_fp'].float().to(device),  \
+                    data['protein_encoded'].float().to(device), data['affinity'].float().to(device)
                 outputs = self.model(x_smiles, x_protein)
 
                 loss = self.criterion(outputs, labels)
@@ -156,12 +157,8 @@ class ModelTrainer:
 
             with torch.no_grad():
                 for data in self.val_loader:
-                    val_inputs = data['combined_features'].float().to(device)
-                    val_labels = data['affinity'].float().to(device)
-
-                    # Split validation inputs
-                    val_x_smiles = val_inputs[:, :smiles_encoding]
-                    val_x_protein = val_inputs[:, smiles_encoding:]
+                    val_x_smiles, val_x_protein, val_labels = data['smiles_fp'].float().to(device), \
+                        data['protein_encoded'].float().to(device), data['affinity'].float().to(device)
 
                     val_loss += self.criterion(self.model(val_x_smiles, val_x_protein), val_labels).item()
 
@@ -172,7 +169,7 @@ class ModelTrainer:
                 f'Epoch: {epoch + 1}, Train Loss: {self.train_losses[-1]:.3f}, '
                 f'Validation Loss: {self.val_losses[-1]:.3f}')
 
-    def test_cnn(self, test_loader, smiles_encoding: int) -> None:
+    def test_cnn(self, test_loader) -> None:
         self.model.eval()
         total_ci = 0
         total_mse = 0
@@ -181,13 +178,8 @@ class ModelTrainer:
 
         with torch.no_grad():
             for batch in test_loader:
-                X_test = batch['combined_features'].float().to(device)
-                y_test = batch['affinity'].float().to(device)
-
-                # Split inputs
-                x_smiles = X_test[:, :smiles_encoding]
-                x_protein = X_test[:, smiles_encoding:]
-
+                x_smiles, x_protein, y_test = batch['smiles_fp'].float().to(device), \
+                    batch['protein_encoded'].float().to(device), batch['affinity'].float().to(device)
                 outputs = self.model(x_smiles, x_protein)
 
                 outputs_np = outputs.cpu().numpy()
