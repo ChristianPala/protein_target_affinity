@@ -9,7 +9,8 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 from torch.utils.data import DataLoader
 from transformers import BertModel, BertTokenizer, AutoTokenizer
-from sentence_transformers import SentenceTransformer  #  Imports from ChemBERTa
+from sentence_transformers import SentenceTransformer  #  Imports from ChemBERTa, function removed due to poor
+# performance
 from collections import Counter
 
 
@@ -241,6 +242,7 @@ class DataPreprocessorCNN(DataPreprocessor):
         smiles_fp = torch.stack(
             [torch.from_numpy(np.array(item['smiles_fp'])).unsqueeze(1).to(device) for item in batch])
         protein_encoded = torch.stack(
-            [torch.from_numpy(np.array(item['protein_encoded']).T).unsqueeze(0).to(device) for item in batch])
+            [torch.from_numpy(np.array(item['protein_encoded'])).unsqueeze(0).to(device) for item in
+             batch])  # changed this line
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'smiles_fp': smiles_fp, 'protein_encoded': protein_encoded, 'affinity': affinity}

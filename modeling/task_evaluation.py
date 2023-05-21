@@ -8,7 +8,7 @@ import torch
 
 
 # Constants
-# Dataset downloading and down-sampling:
+# Dataset downloading and down-sampling, fit to your hardware:
 train_proportion = 'train[0:7000]'
 validation_proportion = 'train[7000:8000]'
 test_proportion = 'train[8000:10000]'
@@ -81,7 +81,7 @@ def cnn_model_evaluation():
     validation_loader = preprocess_dataset(validation_dataset)
     test_loader = preprocess_dataset(test_dataset)
 
-    model = CNNEncoderModel(smiles_encoding=1024, protein_encoding=1200, dropout_p=0.1).to(device)
+    model = CNNEncoderModel(smiles_encoding=1024, protein_encoding=1, dropout_p=0.1).to(device)
     train_cnn_model(model, train_loader, validation_loader, test_loader)
 
 

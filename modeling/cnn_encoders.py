@@ -54,8 +54,8 @@ class CNNEncoderModel(nn.Module):
     """
     def __init__(self, smiles_encoding: int, protein_encoding: int, dropout_p: float = 0.1):
         super(CNNEncoderModel, self).__init__()
-        self.smiles_features = smiles_encoding
-        self.protein_features = protein_encoding
+        self.smiles_features = 1024
+        self.protein_features = 1024
         self.cnn_smiles = ConvBlockSMILES(smiles_encoding)
         self.cnn_protein = ConvBlockProtein(protein_encoding)
         # connect the two encodings to the DrugTargetNET model with the Öztürk et al. architecture
