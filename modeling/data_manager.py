@@ -1,6 +1,8 @@
 # Auxiliary class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
 # for drug target interaction prediction
 # Libraries:
+import itertools
+
 import numpy as np
 import torch
 from datasets import load_dataset
@@ -9,6 +11,8 @@ from rdkit.Chem import AllChem
 from torch.utils.data import DataLoader
 from transformers import BertModel, BertTokenizer, AutoTokenizer
 from sentence_transformers import SentenceTransformer
+from collections import Counter
+
 
 
 # Constants:
@@ -19,10 +23,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_name = 'Rostlab/prot_bert'
 model = BertModel.from_pretrained(model_name).to(device)
 tokenizer = BertTokenizer.from_pretrained(model_name)
-# Load the pretrained Roberta transformer and tokenizer for protein sequences from
-# ChemBERTa: A Pre-trained Language Model for Chemical Text Mining
-s_tokenizer = AutoTokenizer.from_pretrained("seyonec/PubChem10M_SMILES_BPE_450k")
-s_model = SentenceTransformer("seyonec/PubChem10M_SMILES_BPE_450k")
 
 
 # Classes:
@@ -30,6 +30,17 @@ class ProteinAffinityData:
     """
     Class to load and preprocess the protein affinity dataset from the JGLaser HuggingFace repository
     """
+    # Constants:
+    amino_acid_properties = {
+        'A': 'A', 'G': 'A', 'V': 'A',  # AGV
+        'I': 'B', 'L': 'B', 'F': 'B', 'P': 'B',  # ILFP
+        'Y': 'C', 'M': 'C', 'T': 'C', 'S': 'C',  # YMTS
+        'H': 'D', 'N': 'D', 'Q': 'D', 'W': 'D',  # HNQW
+        'R': 'E', 'K': 'E',  # RK
+        'D': 'F', 'E': 'F',  # DE
+        'C': 'G',  # C
+        'X': 'H'  # Unknown
+    }
 
     def __init__(self, split: str) -> None:
         """
@@ -37,6 +48,9 @@ class ProteinAffinityData:
         :param split:
         """
         self.data = load_dataset("jglaser/binding_affinity", split=split)
+        self.all_possible_triads = [''.join(t) for t in
+                                   itertools.product(set(ProteinAffinityData.amino_acid_properties.values()),
+                                                     repeat=3)]
 
     def preprocess(self):
         """
@@ -44,9 +58,8 @@ class ProteinAffinityData:
         and combining the features into a single tensor.
         :return:
         """
-        self.data = self.data.map(self._safe_smiles_to_fp).filter(lambda x: x is not None)
-        self.data = self.data.map(self._protein_encoding)
-        self.data = self.data.map(self._combine_features)
+        self.data = self.data.map(self._safe_morgan_smiles_to_fp)
+        self.data = self.data.map(self._protein_encoding_transformer)
 
     def normalize_affinity(self, mean: float, std: float) -> None:
         """
@@ -67,28 +80,6 @@ class ProteinAffinityData:
         return DataLoader(self.data, batch_size=batch_size, shuffle=shuffle, collate_fn=self._collate_fn)
 
     @staticmethod
-    def _safe_smiles_to_fp(x):
-        """
-        Function to convert a SMILES string into an embedding using a pretrained model and handle exceptions
-        :param x: str: The SMILES string
-        :return: dict: The input dictionary with the embedding added
-        """
-        try:
-            # Encode the SMILES string
-            encoding = s_tokenizer(x['smiles'], return_tensors='pt')
-
-            # Pass the encoding through the model
-            embeddings = s_model.encode(encoding)
-
-            # Use the mean embedding if there are multiple
-            mean_embedding = embeddings.mean(axis=0)
-
-            x['smiles_fp'] = mean_embedding
-        except Exception as e:
-            print(f"Could not compute embedding for SMILES {x['smiles']}. Error: {e}")
-        return x
-
-    @staticmethod
     def _safe_morgan_smiles_to_fp(x):
         """
         Function to convert a SMILES string into a Morgan fingerprint and handle exceptions
@@ -106,7 +97,7 @@ class ProteinAffinityData:
         return x
 
     @staticmethod
-    def _protein_encoding(x):
+    def _protein_encoding_transformer(x):
         """
         Function to encode a protein sequence using the ProtBert Transformer model
         :return:
@@ -130,6 +121,21 @@ class ProteinAffinityData:
 
         return x
 
+    def _protein_encoding_conjoint(self, x) -> None:
+        """
+        Function to encode a protein sequence using Conjoint Triad properties
+        :return:
+        """
+        assert len(self.all_possible_triads) == 512, "There should be 8^3 possible triads"
+        sequence = x['seq']
+        property_sequence = [self.amino_acid_properties.get(aa.capitalize(), 'X') for aa in sequence]
+        property_sequence.extend(['X', 'X'])  # Append 'X' for last two amino acids to make triads
+        triads = ["".join(triad) for triad in zip(property_sequence, property_sequence[1:],
+                                                  property_sequence[2:])]
+        triad_frequencies = Counter(triads)
+        triad_vector = [triad_frequencies[triad] for triad in self.all_possible_triads]
+        x['protein_encoded'] = np.array(triad_vector)
+        return x
     @staticmethod
     def _normalize_affinity(x, mean, std):
         """
@@ -164,17 +170,3 @@ class ProteinAffinityData:
 
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'combined_features': combined_features, 'affinity': affinity}
-
-    @staticmethod
-    def _combine_features(x):
-        """
-        Function to combine the features into a single tensor and flatten it to a 1D array
-        :param x: the input dictionary
-        :return: the input dictionary with the features combined and flattened
-        """
-        smiles_fp = torch.from_numpy(np.array(x['smiles_fp'])).unsqueeze(0).unsqueeze(0).to(device)
-        protein_encoded = torch.from_numpy(np.array(x['protein_encoded'])).unsqueeze(0).to(device)
-        combined_features = torch.cat((smiles_fp, protein_encoded), dim=1).to(device)
-        flattened_features = combined_features.view(combined_features.size(0), -1)
-        x['combined_features'] = flattened_features
-        return x
