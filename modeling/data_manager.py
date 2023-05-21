@@ -210,6 +210,8 @@ class DataPreprocessorCNN(DataPreprocessor):
         reshaped_protein_encoded = protein_encoded.view(protein_encoded.size(0), 1, -1)
 
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
-        return {'smiles_fp': reshaped_smiles_fp, 'protein_encoded': reshaped_protein_encoded, 'affinity': affinity}
+        combined_features = torch.cat([reshaped_smiles_fp, reshaped_protein_encoded], dim=-1)
+        return {'smiles_fp': reshaped_smiles_fp, 'protein_encoded': reshaped_protein_encoded,
+                'combined_features': combined_features, 'affinity': affinity}
 
     # add other encoders here to extend the class or override the preprocess methods

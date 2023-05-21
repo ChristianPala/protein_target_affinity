@@ -146,12 +146,7 @@ class ModelTrainer:
 
             for data in self.train_loader:
                 self.optimizer.zero_grad()
-                inputs, labels = data['combined_features'].float().to(device), data['affinity'].float().to(device)
-
-                # Split inputs
-                x_smiles = inputs[:, :smiles_encoding]
-                x_protein = inputs[:, smiles_encoding:]
-
+                x_smiles, x_protein, labels = data['smiles_fp'].float().to(device),  data['protein_encoded'].float().to(device), data['affinity'].float().to(device)
                 outputs = self.model(x_smiles, x_protein)
 
                 loss = self.criterion(outputs, labels)

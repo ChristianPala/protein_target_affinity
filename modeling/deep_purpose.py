@@ -1,13 +1,14 @@
 # Library to create a baseline model using DeepPurpose on the JGLaser HuggingFace repository
 # Libraries:
+import os
 from DeepPurpose import CompoundPred as models
 from DeepPurpose.utils import data_process, generate_config
+from ax import optimize
 from datasets import load_dataset
 from sklearn.metrics import mean_squared_error
 from torch.utils.data import Dataset
 from typing import Tuple
 from itertools import product
-
 
 # Functions:
 def load_binding_db_data(proportion: str) -> Dataset:
@@ -113,5 +114,58 @@ def deep_purpose_baseline() -> None:
     print("Best model protein encoding: ", best_protein_encoding)
     print("Best model MSE: ", best_mse)
 
+    home_folder = os.path.dirname('/home/light/models/')
+
+    # Save the model
+    best_model.save_model(home_folder)
+
+
+def run_experiment(parameterization):
+    # Extract parameters from the input
+    lr = parameterization['lr']
+    epochs = parameterization['epochs']
+    dropout = parameterization['dropout']
+    batch_size = parameterization['batch_size']
+
+    dataset = load_binding_db_data('train[:10%]')
+
+    # Configure your model using these parameters
+    config = generate_config(drug_encoding='CNN', target_encoding='CNN', LR=lr, decay=dropout,
+                                batch_size=batch_size, train_epoch=epochs)
+    # Preprocess the data
+    train_d, val_d, test_d = preprocess_data(dataset, 'CNN', 'CNN')
+
+    # Create and train the model
+    model = models.model_initialize(**config)
+    model.train(train_d, val_d, test_d)
+
+    # Evaluate the model
+    scores = model.predict(val_d)
+    mse = mean_squared_error(scores, val_d.Label)
+
+    return mse
+
+def fine_tune_deep_purpose():
+    """
+    Function to fine tune the hyperparameters of the DeepPurpose model, keeping the
+    structure from the paper by Öztürk et al.
+    :return:
+    """
+    best_parameters, values, experiment, model = optimize(
+        parameters=[
+            {"name": "lr", "type": "range", "bounds": [1e-6, 1e-2], "log_scale": True},
+            {"name": "epochs", "type": "choice", "values": [5, 10, 15]},
+            {"name": "dropout", "type": "range", "bounds": [0.0, 0.5]},
+            {"name": "batch_size", "type": "choice", "values": [32, 64, 128]}
+        ],
+        evaluation_function=run_experiment,
+        objective_name='mse',
+    )
+
+    print(best_parameters)
+    print(values)
+    print(experiment)
+
 if __name__ == '__main__':
     deep_purpose_baseline()
+    fine_tune_deep_purpose()

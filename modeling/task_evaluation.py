@@ -12,9 +12,9 @@ logging.getLogger("datasets").setLevel(logging.ERROR)
 
 # Constants
 # Dataset downloading and down-sampling:
-train_proportion = 'train[:7%]'
-validation_proportion = 'train[7%:8%]'
-test_proportion = 'train[8%:10%]'
+train_proportion = 'train[:7000]'
+validation_proportion = 'train[7000:8000]'
+test_proportion = 'train[8000:10000]'
 # Model parameters:
 morgan_fingerprint_encoding = 1024
 conjoint_triad_encoding = 512  # Normally 7^3 = 343, but we have an unkown token X, so 8^3 = 512
@@ -84,7 +84,7 @@ def cnn_model_evaluation():
     validation_loader = preprocess_dataset(validation_dataset)
     test_loader = preprocess_dataset(test_dataset)
 
-    model = CNNEncoderModel(smiles_encoding=2048, protein_encoding=1024, dropout_p=0.1).to(device)
+    model = CNNEncoderModel(smiles_encoding=1024, protein_encoding=64512, dropout_p=0.1).to(device)
     train_cnn_model(model, train_loader, validation_loader, test_loader)
 
 

@@ -11,19 +11,26 @@ class CNNEncoderModel(nn.Module):
             nn.Conv1d(1, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2),  # we reduce the size of the input.
             # further layers...
         )
         self.cnn_protein = nn.Sequential(
             nn.Conv1d(1, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2, stride=2),
             # further layers...
         )
+        # Initialize your DrugTargetNET with the desired final number of dimensions.
         self.drug_target_net = DrugTargetNET(smiles_encoding, protein_encoding, dropout_p)
 
     def forward(self, x_smiles, x_protein):
-        x_smiles = x_smiles.unsqueeze(1)  # add channel dimension
-        x_protein = x_protein.unsqueeze(1)  # add channel dimension
+        x_smiles = x_smiles
+        x_protein = x_protein
         out_smiles = self.cnn_smiles(x_smiles)
         out_smiles = out_smiles.view(out_smiles.size(0), -1)
         out_protein = self.cnn_protein(x_protein)
