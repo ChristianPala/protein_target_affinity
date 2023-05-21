@@ -30,10 +30,10 @@ class ConvBlockProtein(nn.Module):
     """
     def __init__(self, in_channels: int):
         super(ConvBlockProtein, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(3,3), stride=1, padding=1)  # Change to Conv2d
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=(3,3), stride=1, padding=1)
         self.relu = nn.ReLU()
-        self.conv2 = nn.Conv2d(64, 1024, kernel_size=(3,3), stride=1, padding=1)  # Change to Conv2d
-        self.adaptive_maxpool = nn.AdaptiveMaxPool2d((1,1))  # Change to AdaptiveMaxPool2d
+        self.conv2 = nn.Conv2d(64, 1024, kernel_size=(3,3), stride=1, padding=1)
+        self.adaptive_maxpool = nn.AdaptiveMaxPool2d((1,1))
 
     def forward(self, x):
         x = self.conv1(x)

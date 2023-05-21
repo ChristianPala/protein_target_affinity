@@ -56,7 +56,7 @@ class DataPreprocessor:
                                    itertools.product(set(DataPreprocessor.amino_acid_properties.values()),
                                                      repeat=3)]
 
-    def preprocess(self):
+    def preprocess(self) -> None:
         """
         Function to preprocess the data, including computing the fingerprints and encoding the protein sequences,
         and combining the features into a single tensor.
@@ -104,23 +104,16 @@ class DataPreprocessor:
     def _protein_encoding_transformer(x):
         """
         Function to encode a protein sequence using the ProtBert Transformer model
-        :return:
+        :return: dict: The input dictionary with the encoded protein sequence added
         """
-        # Tokenize the protein sequence
         sequence = x['seq']
         tokens = tokenizer.encode(sequence, add_special_tokens=True)
-        # Convert the tokens to PyTorch tensors
         input_ids = torch.tensor(tokens).unsqueeze(0)
-
-        # Move the input tensors to the appropriate device
         input_ids = input_ids.to(device)
 
-        # Forward pass through the model to obtain the encoded representations
         with torch.no_grad():
             outputs = model(input_ids)
             encoded_sequence = outputs.last_hidden_state.squeeze(0)
-
-        # Add the encoded sequence to the input dictionary
         x['protein_encoded'] = encoded_sequence
 
         return x
@@ -243,7 +236,7 @@ class DataPreprocessorCNN(DataPreprocessor):
             [torch.from_numpy(np.array(item['smiles_fp'])).unsqueeze(1).to(device) for item in batch])
         protein_encoded = torch.stack(
             [torch.from_numpy(np.array(item['protein_encoded'])).unsqueeze(0).to(device) for item in
-             batch])  # changed this line
+             batch])
         affinity = torch.tensor([item['affinity'] for item in batch]).float().to(device)
         return {'smiles_fp': smiles_fp, 'protein_encoded': protein_encoded, 'affinity': affinity}
 

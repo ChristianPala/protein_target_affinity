@@ -25,7 +25,7 @@ class DrugTargetNET(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
 
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
@@ -125,11 +125,11 @@ class ModelTrainer:
     def save(self, filename: str) -> None:
         torch.save(self.model.state_dict(), filename)
 
-    def load(self, filename: str):
+    def load(self, filename: str) -> None:
         self.model.load_state_dict(torch.load(filename))
         self.model.to(device)
 
-    def plot_losses(self):
+    def plot_losses(self) -> None:
         plt.plot(self.train_losses, label='Train Loss')
         plt.plot(self.val_losses, label='Validation Loss')
         plt.title('Train and Validation Losses')

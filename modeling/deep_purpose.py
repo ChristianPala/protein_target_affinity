@@ -70,9 +70,10 @@ def deep_purpose_baseline() -> None:
     dataset = load_binding_db_data(down_sample)
 
     # drug_encodings = ['Morgan', 'Pubchem', 'Daylight', 'rdkit_2d_normalized', 'CNN',
-                      # 'CNN_RNN', 'Transformer', 'MPNN']
+    #                   'CNN_RNN', 'Transformer', 'MPNN']
 
     # protein_encodings = ['Conjoint_triad','CNN', 'CNN_RNN', 'Transformer']
+
     # From our testing, the best encodings are: CNN and CNN
     drug_encodings = ['CNN']
     protein_encodings = ['CNN']
@@ -121,6 +122,11 @@ def deep_purpose_baseline() -> None:
 
 
 def run_experiment(parameterization):
+    """
+    Function to run the experiment for the hyperparameter optimization of the DeepPurpose model
+    :param parameterization: dict: The hyperparameters to test
+    :return: float: The mean squared error of the model
+    """
     # Extract parameters from the input
     lr = parameterization['lr']
     epochs = parameterization['epochs']
@@ -149,7 +155,7 @@ def fine_tune_deep_purpose():
     """
     Function to fine tune the hyperparameters of the DeepPurpose model, keeping the
     structure from the paper by Öztürk et al.
-    :return:
+    :return: None. Prints the results of the hyperparameter optimization
     """
     best_parameters, values, experiment, model = optimize(
         parameters=[
@@ -171,4 +177,4 @@ def fine_tune_deep_purpose():
 
 if __name__ == '__main__':
     deep_purpose_baseline()
-    fine_tune_deep_purpose()
+    # fine_tune_deep_purpose()

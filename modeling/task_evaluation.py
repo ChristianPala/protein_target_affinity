@@ -25,7 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def preprocess_dataset(dataset) -> torch.utils.data.DataLoader:
     """
     Preprocesses the dataset, normalizes the affinity and returns a dataloader.
-    :param dataset: The downsampled dataset downloaded from the HuggingFace library by Jglaser.
+    @param dataset: The down-sampled dataset downloaded from the HuggingFace library by Jglaser.
     :return: A dataloader with the preprocessed data.
     """
     dataset.preprocess()
@@ -37,10 +37,10 @@ def preprocess_dataset(dataset) -> torch.utils.data.DataLoader:
 def train_model(model, train_loader, validation_loader, test_loader) -> None:
     """
     Trains the model and saves it.
-    :param model: DrugTargetNET model or CNNEncoderModel to train.
-    :param train_loader: the train dataloader.
-    :param validation_loader: the validation dataloader.
-    :param test_loader: the test dataloader.
+    @param model: DrugTargetNET model or CNNEncoderModel to train.
+    @param train_loader: the train dataloader.
+    @param validation_loader: the validation dataloader.
+    @param test_loader: the test dataloader.
     :return: None. Saves the model and plots the losses.
     """
     trainer = ModelTrainer(model, train_loader, validation_loader)
@@ -50,6 +50,14 @@ def train_model(model, train_loader, validation_loader, test_loader) -> None:
     trainer.plot_losses()
 
 def train_cnn_model(model, train_loader, validation_loader, test_loader) -> None:
+    """
+    Trains the model and saves it.
+    @param model: DCNNEncoderModel to train.
+    @param train_loader: the train dataloader.
+    @param validation_loader: the validation dataloader.
+    @param test_loader: the test dataloader.
+    :return: None. Saves the model and plots the losses.
+    """
     trainer = ModelTrainer(model, train_loader, validation_loader)
     trainer.train_cnn(epochs=epochs)
     trainer.save('cnn_dti_model.pth')
