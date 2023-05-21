@@ -2,7 +2,6 @@
 # for drug target interaction prediction
 # Libraries:
 import itertools
-
 import numpy as np
 import torch
 from datasets import load_dataset
@@ -32,14 +31,14 @@ class ProteinAffinityData:
     """
     # Constants:
     amino_acid_properties = {
-        'A': 'A', 'G': 'A', 'V': 'A',  # AGV
-        'I': 'B', 'L': 'B', 'F': 'B', 'P': 'B',  # ILFP
-        'Y': 'C', 'M': 'C', 'T': 'C', 'S': 'C',  # YMTS
-        'H': 'D', 'N': 'D', 'Q': 'D', 'W': 'D',  # HNQW
-        'R': 'E', 'K': 'E',  # RK
-        'D': 'F', 'E': 'F',  # DE
-        'C': 'G',  # C
-        'X': 'H'  # Unknown
+        'A': 'A', 'G': 'A', 'V': 'A',  # AGV - aliphatic
+        'I': 'B', 'L': 'B', 'F': 'B', 'P': 'B',  # ILFP - aliphatic with rings
+        'Y': 'C', 'M': 'C', 'T': 'C', 'S': 'C',  # YMTS - aromatic
+        'H': 'D', 'N': 'D', 'Q': 'D', 'W': 'D',  # HNQW - aromatic with rings
+        'R': 'E', 'K': 'E',  # RK - positively charged
+        'D': 'F', 'E': 'F',  # DE - negatively charged
+        'C': 'G',  # C - cysteine
+        'X': 'H'  # Unknown amino acid
     }
 
     def __init__(self, split: str) -> None:
