@@ -14,7 +14,6 @@ This repository contains the final project for the course "Applied Case Studies 
 - [Introduction](#introduction)
 - [Dataset](#dataset)
 - [Installation](#installation)
-- [Usage](#usage)
 
 ## Introduction
 
@@ -23,7 +22,7 @@ that can predict the binding affinity between proteins and target molecules.
 The model is trained on benchmark datasets of ligand SMILES, protein sequences and corresponding affinity values.
 
 ## Dataset
-Three benchmark datasets were usedto train our models:
+Three benchmark datasets were used to train and test our models:
 
 - BindingDB
 - Davis
